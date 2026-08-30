@@ -1,21 +1,20 @@
-name: Deploy ke GitHub Pages
+name: Deploy Mossa
 
 on:
   push:
     branches: [main]
   workflow_dispatch: {}
 
+# Izin standar yang cukup untuk checkout dan eksekusi
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout kode
@@ -32,59 +31,25 @@ jobs:
 
       - name: Build
         env:
-          # Nama repo dipakai sebagai base path (https://<user>.github.io/<repo>/).
-          # ${{ github.event.repository.name }} otomatis terisi oleh GitHub.
-          GITHUB_PAGES_BASE: /${{ github.event.repository.name }}/
-          # Secrets diisi lewat Settings > Secrets and variables > Actions
-          # di repo GitHub Anda (lihat README.md bagian GitHub Pages).
+          # Pastikan semua secrets ini sudah diisi di repo Anda!
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_CLOUDINARY_CLOUD_NAME: ${{ secrets.VITE_CLOUDINARY_CLOUD_NAME }}
           VITE_CLOUDINARY_UPLOAD_PRESET: ${{ secrets.VITE_CLOUDINARY_UPLOAD_PRESET }}
-        run: npm run build -- --base=/
+        run: npm run build
+
+      - name: Fix SPA Routing (Copy index.html to 404.html)
+        run: cp dist/index.html dist/404.html
 
       - name: Deploy to External Public Repository
         uses: peaceiris/actions-gh-pages@v3
         with:
-          # Token ini WAJIB dibuat (lihat instruksi di bawah)
           personal_token: ${{ secrets.PERSONAL_TOKEN }} 
-          
-          # GANTI INI: Formatnya "username/nama-repo-public"
           external_repository: servant-id/mossain
-          
-          # Branch di repo public yang akan menampung hasil build
           publish_branch: main 
-          
-          # Folder hasil build Vite
           publish_dir: ./dist
-
-          # TAMBAHAN PENTING: Agar Custom Domain tidak hilang/reset setiap kali deploy
           cname: mossain.servant.biz.id
-          
-          # Opsional: Membersihkan file lama di repo public sebelum push baru
           force_orphan: true 
-          
-          # Isi commit message
           commit_message: "Release on Main ${{ github.event.head_commit.message }}"
-          
-          # Set username commit (supaya terlihat siapa yang deploy)
           user_name: 'github-actions[bot]'
           user_email: 'github-actions[bot]@users.noreply.github.com'
-
-      - name: Upload artifact untuk Pages
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy ke GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4

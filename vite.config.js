@@ -1,32 +1,10 @@
-import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vite'
 
-// https://vitejs.dev/config/
+// Situs ini di-deploy ke custom domain (mossain.servant.biz.id) lewat
+// repo publik terpisah, jadi base path SELALU root ("/") — bukan
+// "/nama-repo/" seperti skema username.github.io/nama-repo.
 export default defineConfig({
   plugins: [react()],
   base: '/',
-  //tambahkan ini jika library berat contoh Markdown
-  build: {
-    // Menaikkan batas peringatan menjadi 1000 kB (1 MB) agar tidak terlalu sensitif
-    chunkSizeWarningLimit: 1000,
-    rollupOptions: {
-      output: {
-        // Konfigurasi manual untuk memecah (split) kode menjadi file-file kecil
-        manualChunks(id) {
-          if (id.includes('node_modules')) {
-            // Memisahkan library Markdown yang berat ke chunk 'markdown-libs'
-            if (id.includes('react-markdown') || id.includes('rehype') || id.includes('remark') || id.includes('micromark')) {
-              return 'markdown-libs';
-            }
-            // Memisahkan library Supabase ke chunk 'supabase-libs'
-            if (id.includes('@supabase')) {
-              return 'supabase-libs';
-            }
-            // Library lainnya (seperti React, Lucide) masuk ke 'vendor'
-            return 'vendor';
-          }
-        }
-      }
-    }
-  }
 })

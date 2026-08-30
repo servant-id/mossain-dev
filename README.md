@@ -32,17 +32,26 @@ Postgres — cocok untuk hosting statis seperti GitHub Pages.
 
 ## 2. Buat Akun Admin (Supabase Auth)
 
-Tidak ada tabel `users` custom — admin login memakai Supabase Auth bawaan.
+Tidak ada tabel `users` custom — admin login memakai Supabase Auth bawaan,
+tapi akses tulis dibatasi hanya untuk email yang terdaftar di
+`mossain.admins` (lihat penjelasan isolasi di bawah).
 
 1. Di Supabase Dashboard → **Authentication → Users → Add user**.
 2. Isi email & password admin Anda, centang **Auto Confirm User** (supaya
    tidak perlu verifikasi email dulu).
-3. Selesai — email & password ini yang dipakai login di `/admin/login`.
+3. **Pastikan email yang sama** juga ada di tabel `mossain.admins` — secara
+   default `schema.sql` sudah mengisi `admin@mossain.com`. Kalau email admin
+   Anda berbeda, jalankan di SQL Editor:
+   ```sql
+   insert into mossain.admins (email) values ('email-admin-anda@contoh.com')
+   on conflict (email) do nothing;
+   ```
+   Tanpa baris ini, login akan berhasil (Supabase Auth-nya valid) tapi
+   semua operasi tulis (tambah/edit/hapus produk, artikel, dsb) akan ditolak
+   oleh RLS — ini yang membuat isolasi antar-client aman.
 
-> Catatan: siapa pun yang berhasil login (punya akun di Authentication →
-> Users) otomatis punya akses admin penuh ke seluruh konten Mossa, karena
-> policy RLS-nya `auth.role() = 'authenticated'`. Jangan buat user tambahan
-> di project Supabase ini kecuali memang untuk admin Mossa juga.
+> Kalau nanti butuh admin kedua, cukup `insert` email keduanya ke
+> `mossain.admins` — tidak perlu ubah kode maupun RLS policy sama sekali.
 
 ## 3. Setup Cloudinary
 
@@ -101,80 +110,92 @@ Hasil build statis ada di `dist/` — bisa di-deploy ke hosting statis mana
 pun (Vercel/Netlify/Cloudflare Pages), atau lanjut ke bagian 8 untuk GitHub
 Pages.
 
-## 8. Hosting di GitHub Pages + Deploy dari Codespace
+## 8. Hosting: Repo Dev (GitHub Actions) → Repo Publik (GitHub Pages, custom domain)
 
-Pembagian tugasnya sekarang jauh lebih simpel karena tidak ada Edge
-Function:
-- **GitHub Pages** → hosting frontend statis (hasil `npm run build`).
-- **GitHub Actions** → otomatis build & deploy setiap kali Anda push ke `main`.
-- **Codespace** → hanya dipakai untuk develop (opsional — bisa juga langsung
-  push dari lokal).
+Setup Anda memakai 2 repo:
+- **Repo dev** (private, berisi source code + workflow) → tempat Anda kerja
+  dan push. Berisi `.github/workflows/deploy.yml`.
+- **Repo publik** `servant-id/mossain` → HANYA berisi hasil `dist/` (file
+  build siap pakai), di-generate otomatis, jangan diedit manual. GitHub
+  Pages repo ini yang menyajikan situs ke domain **mossain.servant.biz.id**.
+- **Codespace** → opsional, dipakai untuk develop di repo dev.
 - **Supabase** → database + auth + RLS, diakses langsung dari browser.
   Tidak ada komponen server tambahan yang perlu di-deploy sama sekali.
 
-### Langkah dari nol
+### Cara kerja workflow
 
-**A. Buat repo & push kode**
-```bash
-# di Codespace atau lokal
-git init
-git add .
-git commit -m "Initial commit: port Mossa ke React + Supabase"
-git branch -M main
-git remote add origin https://github.com/<username>/<nama-repo>.git
-git push -u origin main
-```
+Setiap `git push` ke branch `main` di **repo dev**:
+1. GitHub Actions checkout kode, install dependencies, `npm run build`.
+2. Ada **sanity check otomatis**: build akan GAGAL (merah di tab Actions)
+   kalau `dist/index.html` ternyata masih merujuk ke `/src/main.jsx` alih-alih
+   bundle hasil build — supaya masalah blank page/MIME error tidak pernah
+   lolos ke production tanpa Anda sadari.
+3. Hasil `dist/` (termasuk `CNAME` dan `404.html` untuk SPA routing) di-push
+   ke **repo publik** `servant-id/mossain`, branch `main`, dengan riwayat
+   commit di-reset tiap kali (`force_orphan: true`) supaya repo publik tetap
+   ringan.
+4. GitHub Pages di repo publik menyajikan isi itu ke domain custom.
 
-**B. Aktifkan GitHub Pages**
-1. Buka repo di GitHub → **Settings → Pages**.
-2. Di "Build and deployment", pilih **Source: GitHub Actions**. Workflow
-   `.github/workflows/deploy.yml` yang sudah disiapkan akan otomatis muncul
-   sebagai opsi build.
-
-**C. Isi Secrets untuk build (Settings → Secrets and variables → Actions)**
-Tambahkan 4 repository secret ini (nilainya sama seperti isi `.env` lokal):
+### Yang perlu diisi di repo DEV (Settings → Secrets and variables → Actions)
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
 - `VITE_CLOUDINARY_CLOUD_NAME`
 - `VITE_CLOUDINARY_UPLOAD_PRESET`
+- `PERSONAL_TOKEN` — GitHub Personal Access Token dengan akses write ke repo
+  `servant-id/mossain` (dipakai `peaceiris/actions-gh-pages` untuk push ke
+  repo publik).
 
-**D. Push ke `main` → otomatis deploy**
-Setiap `git push` ke branch `main`, tab **Actions** di GitHub akan
-menjalankan build lalu deploy ke:
-```
-https://<username>.github.io/<nama-repo>/
-```
+### Kalau blank/error MIME lagi muncul di production
+1. Cek tab **Actions** di repo dev — kalau step "Sanity check" gagal (merah),
+   berarti build memang menghasilkan file yang salah; baca log-nya.
+2. Kalau Actions sukses hijau tapi situs tetap blank, buka
+   `servant-id/mossain` langsung di GitHub, klik `index.html` di root —
+   pastikan baris `<script>`-nya berisi `/assets/index-xxxx.js`, BUKAN
+   `/src/main.jsx`. Kalau sudah benar di situ tapi browser masih dapat versi
+   lama, itu murni cache CDN (Cloudflare/GitHub Pages) yang belum ter-purge
+   — coba tunggu beberapa menit atau purge cache lagi, incognito window
+   untuk memastikan bukan cache browser lokal.
 
-Tidak ada langkah E/F seperti sebelumnya (deploy Edge Function) — cukup
-sampai di sini. Login admin langsung berfungsi begitu langkah 1–2 di atas
-selesai, karena admin login bicara langsung ke Supabase Auth dari browser.
-
-## Isolasi Schema (Multi-Project dalam 1 Database)
+## Isolasi Schema & Isolasi Admin (Multi-Project dalam 1 Database)
 
 Kalau Supabase project ini juga dipakai untuk client/project lain (misalnya
-yang menyimpan tabelnya di schema `public` dengan kolom pembeda seperti
-`project_name`), tidak akan ada bentrok karena:
-- Semua tabel Mossa hidup di schema **`mossain`**, bukan `public`.
-- Nama tabelnya (`mossain.products`, `mossain.posts`, dst) sama sekali
-  berbeda "alamat" dari `public.products` milik project lain.
-- RLS masing-masing schema independen satu sama lain.
+servant-main yang menyimpan tabelnya di schema `public`), datanya aman dari
+dua sisi:
 
-Satu hal yang perlu diperhatikan: karena admin auth sekarang pakai Supabase
-Auth **bawaan project** (bukan tabel custom), tabel `auth.users` dipakai
-bersama oleh **semua** project/client di Supabase project yang sama. Kalau
-Anda taruh admin Mossa dan admin project lain di satu Supabase project yang
-sama, keduanya akan muncul di daftar Authentication → Users yang sama —
-tapi karena RLS di schema `mossain` mengizinkan *siapa pun yang
-authenticated*, admin project lain juga otomatis bisa mengedit konten
-Mossa (dan sebaliknya, tergantung RLS project itu). Kalau ini tidak
-diinginkan, pertimbangkan pakai Supabase project terpisah untuk tiap
-client, atau tambahkan pengecekan email spesifik di RLS policy (misal
-`auth.jwt() ->> 'email' = 'admin@mossain.com'`).
+**1. Isolasi data** — semua tabel Mossa hidup di schema **`mossain`**, bukan
+`public`. Nama tabelnya (`mossain.products`, `mossain.posts`, dst) sama
+sekali berbeda "alamat" dari `public.products` milik project lain.
+
+**2. Isolasi akses tulis** — ini bagian yang krusial. Karena admin login
+sama-sama pakai `auth.users` **bawaan** Supabase (dipakai bersama oleh
+*semua* client di project Supabase yang sama), RLS `mossain.*` **tidak**
+cukup hanya cek "authenticated" — itu akan membuat admin servant-main (atau
+client lain mana pun yang login di project ini) otomatis bisa mengedit
+konten Mossa juga, dan sebaliknya.
+
+Solusinya: RLS `mossain.*` memakai fungsi `mossain.is_mossain_admin()` yang
+mengecek apakah email yang sedang login ada di tabel `mossain.admins`.
+Admin servant-main yang login dengan emailnya sendiri (tidak terdaftar di
+`mossain.admins`) akan **ditolak** oleh RLS saat mencoba menulis ke tabel
+`mossain.*` manapun — begitu juga sebaliknya, admin Mossa tidak otomatis
+punya akses ke tabel `public.*` milik servant-main karena RLS project itu
+independen dan tidak mengenal `mossain.admins`.
+
+Tabel `mossain.admins` sendiri tertutup total dari luar (tidak ada policy
+select untuk anon/authenticated) — hanya bisa dibaca lewat fungsi
+`security definer` di atas atau dari SQL Editor (koneksi service_role).
 
 ## Catatan Penting
 
-- **Form konsultasi** (`/form`) tetap mengirim langsung ke Formspree persis
-  seperti sistem lama — tidak ada perubahan pada alur backend kontak.
+- **Struktur menu**: Home, Booking (form konsultasi/keluhan — pengganti
+  `/form` lama), Tentang Kami (dropdown: Profil, Testimoni, Lokasi, FAQ),
+  Produk (galeri katalog). Blog/News dihapus dari struktur ini.
+- **Booking** (`/booking`) tetap mengirim langsung ke Formspree persis
+  seperti alur `/form` yang lama — tidak ada perubahan pada backend kontak.
+- **Testimoni & FAQ** diinput manual lewat admin (`/admin/testimonials`,
+  `/admin/faqs`) — bukan hasil scrape/API Google Maps, karena ToS Google
+  melarang menyimpan review lebih dari 30 hari tanpa re-sync berkala.
+  Halaman Tentang Kami tetap menautkan ke ulasan asli di Google Maps.
 - **GTranslate** menggunakan widget resmi Google (bukan simulasi) — konten
   tetap tersimpan hanya dalam Bahasa Indonesia; Bahasa Inggris dihasilkan
   dari auto-translate saat pengunjung memilih EN.

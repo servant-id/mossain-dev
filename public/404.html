@@ -7,12 +7,17 @@
   File ini lalu redirect balik ke index.html, membawa path aslinya lewat
   query string, supaya React Router bisa mengambil alih dan menampilkan
   halaman yang benar.
+
+  pathSegmentsToKeep = 0 karena situs ini di-deploy di ROOT custom domain
+  (mossain.servant.biz.id), bukan di subpath seperti
+  username.github.io/nama-repo. Kalau suatu saat pindah ke skema subpath,
+  angka ini perlu disesuaikan lagi.
 -->
 <html>
   <head>
     <meta charset="utf-8" />
     <script>
-      var pathSegmentsToKeep = 1; // jumlah segmen path = nama repo, misal /mossain-app/
+      var pathSegmentsToKeep = 0;
       var l = window.location;
       l.replace(
         l.protocol + "//" + l.hostname + (l.port ? ":" + l.port : "") +

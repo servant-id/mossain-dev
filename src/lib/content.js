@@ -116,7 +116,7 @@ export async function fetchPostBySlug(type, slug) {
 export async function fetchSettings() {
   const { data, error } = await supabase.from("settings").select("setting_key, setting_value");
   if (error) throw error;
-  const settings = { show_solusi: true, show_layanan: true, show_video: false };
+  const settings = { show_layanan: true };
   for (const row of data || []) {
     settings[row.setting_key] = row.setting_value === "1";
   }
@@ -130,4 +130,44 @@ export async function fetchVideos() {
     .order("sort_order");
   if (error) throw error;
   return (data || []).filter((v) => v.src);
+}
+
+/** Fetch all product images across the whole catalog, grouped by product — untuk halaman Galeri Produk. */
+export async function fetchProductGallery() {
+  const { data: products, error } = await supabase
+    .from("products")
+    .select("id, slug, title, main, sub")
+    .eq("is_active", true)
+    .order("main")
+    .order("sub")
+    .order("sort_order");
+  if (error) throw error;
+
+  const ids = (products || []).map((p) => p.id);
+  const imagesByProduct = await fetchImagesForProducts(ids);
+
+  return (products || [])
+    .map((p) => ({ ...p, images: imagesByProduct[p.id] || [] }))
+    .filter((p) => p.images.length > 0);
+}
+
+export async function fetchTestimonials() {
+  const { data, error } = await supabase
+    .from("testimonials")
+    .select("id, patient_name, location, rating, content, created_at")
+    .eq("status", "published")
+    .order("sort_order")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function fetchFaqs() {
+  const { data, error } = await supabase
+    .from("faqs")
+    .select("id, question, answer")
+    .eq("status", "published")
+    .order("sort_order");
+  if (error) throw error;
+  return data || [];
 }

@@ -4,9 +4,7 @@ import { supabase } from "../../lib/supabaseClient";
 import { adminWrite } from "../../lib/adminApi";
 
 const LABELS = {
-  show_solusi: "Tampilkan Section Produk (Solusi)",
-  show_layanan: "Tampilkan Section Layanan",
-  show_video: "Tampilkan Section Video Demo",
+  show_layanan: "Tampilkan Section Produk Pilihan di Home",
 };
 
 export default function AdminSettings() {

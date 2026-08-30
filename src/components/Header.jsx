@@ -1,24 +1,32 @@
-import { useEffect, useState } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import LanguageSwitcher from "./LanguageSwitcher";
 
-const NAV_LINKS = [
-  { to: "/", label: "Beranda", end: true },
-  { to: "/#tentang-kami", label: "Tentang Kami", hash: true },
-  { to: "/#solusi", label: "Produk", hash: true },
-  { to: "/#layanan", label: "Layanan", hash: true },
-  { to: "/form", label: "Form Konsultasi" },
+// Struktur menu sesuai brief: Home, Booking (form konsultasi/keluhan),
+// Tentang Kami (dropdown: profil, testimoni, lokasi, FAQ), Produk
+// (galeri katalog), Kontak (footer). Tidak ada top-bar kontak — header
+// dibuat "frozen" satu baris saja, kontak lengkap ada di footer.
+const SIMPLE_LINKS = [
+  { to: "/", label: "Home", end: true },
+  { to: "/booking", label: "Booking" },
+];
+
+const TENTANG_KAMI_LINKS = [
+  { to: "/tentang-kami", label: "Profil Mossa" },
+  { to: "/tentang-kami#testimoni", label: "Testimoni" },
+  { to: "/tentang-kami#lokasi", label: "Lokasi Kami" },
+  { to: "/tentang-kami#faq", label: "FAQ" },
 ];
 
 export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [terbaruOpen, setTerbaruOpen] = useState(false);
+  const [tentangKamiOpen, setTentangKamiOpen] = useState(false);
+  const location = useLocation();
 
-  // Frozen header: single fixed height, no secondary contact bar. Contact
-  // details live in the footer only, per the brief.
   useEffect(() => {
-    if (!mobileOpen) setTerbaruOpen(false);
-  }, [mobileOpen]);
+    setMobileOpen(false);
+    setTentangKamiOpen(false);
+  }, [location.pathname]);
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-100/80 bg-white/95 backdrop-blur">
@@ -28,37 +36,33 @@ export default function Header() {
         </Link>
 
         <nav className="hidden items-center gap-7 lg:flex">
-          {NAV_LINKS.map((item) =>
-            item.hash ? (
-              <a key={item.to} href={item.to} className="text-[15px] font-medium text-slate-600 transition hover:text-brand-700">
-                {item.label}
-              </a>
-            ) : (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) =>
-                  `text-[15px] font-medium transition hover:text-brand-700 ${
-                    isActive ? "text-brand-700" : "text-slate-600"
-                  }`
-                }
-              >
-                {item.label}
-              </NavLink>
-            )
-          )}
+          {SIMPLE_LINKS.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              className={({ isActive }) =>
+                `text-[15px] font-medium transition hover:text-brand-700 ${
+                  isActive ? "text-brand-700" : "text-slate-600"
+                }`
+              }
+            >
+              {item.label}
+            </NavLink>
+          ))}
 
-          <div className="group relative">
-            <button className="flex items-center gap-1 text-[15px] font-medium text-slate-600 transition hover:text-brand-700">
-              Terbaru
-              <ChevronDown className="h-3.5 w-3.5" />
-            </button>
-            <div className="invisible absolute left-0 z-50 mt-2 w-36 origin-top scale-95 rounded-xl border border-slate-100 bg-white p-1 opacity-0 shadow-card transition group-hover:visible group-hover:scale-100 group-hover:opacity-100">
-              <Link to="/news" className="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-brand-50 hover:text-brand-700">News</Link>
-              <Link to="/blog" className="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-brand-50 hover:text-brand-700">Blog</Link>
-            </div>
-          </div>
+          <DesktopDropdown label="Tentang Kami" links={TENTANG_KAMI_LINKS} />
+
+          <NavLink
+            to="/produk"
+            className={({ isActive }) =>
+              `text-[15px] font-medium transition hover:text-brand-700 ${
+                isActive ? "text-brand-700" : "text-slate-600"
+              }`
+            }
+          >
+            Produk
+          </NavLink>
         </nav>
 
         <div className="flex items-center gap-3">
@@ -66,10 +70,10 @@ export default function Header() {
             <LanguageSwitcher />
           </div>
           <Link
-            to="/form"
+            to="/booking"
             className="hidden items-center gap-1.5 rounded-full bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-floaty transition hover:bg-brand-700 lg:inline-flex"
           >
-            Konsultasi
+            Booking Konsultasi
             <ArrowRight className="h-4 w-4" />
           </Link>
 
@@ -89,42 +93,88 @@ export default function Header() {
           <div className="mb-3 sm:hidden">
             <LanguageSwitcher />
           </div>
-          {NAV_LINKS.map((item) =>
-            item.hash ? (
-              <a
-                key={item.to}
-                href={item.to}
-                onClick={() => setMobileOpen(false)}
-                className="block rounded-md py-2 font-medium text-slate-700 hover:bg-slate-50"
-              >
-                {item.label}
-              </a>
-            ) : (
-              <Link
-                key={item.to}
-                to={item.to}
-                onClick={() => setMobileOpen(false)}
-                className="block rounded-md py-2 font-medium text-slate-700 hover:bg-slate-50"
-              >
-                {item.label}
-              </Link>
-            )
-          )}
+          {SIMPLE_LINKS.map((item) => (
+            <Link
+              key={item.to}
+              to={item.to}
+              onClick={() => setMobileOpen(false)}
+              className="block rounded-md py-2 font-medium text-slate-700 hover:bg-slate-50"
+            >
+              {item.label}
+            </Link>
+          ))}
+
           <button
-            onClick={() => setTerbaruOpen((v) => !v)}
+            onClick={() => setTentangKamiOpen((v) => !v)}
             className="flex w-full items-center justify-between rounded-md py-2 text-left font-medium text-slate-700 hover:bg-slate-50"
           >
-            Terbaru <ChevronDown className="h-3.5 w-3.5" />
+            Tentang Kami <ChevronDown className="h-3.5 w-3.5" />
           </button>
-          {terbaruOpen && (
+          {tentangKamiOpen && (
             <div className="space-y-1 pl-4">
-              <Link to="/news" onClick={() => setMobileOpen(false)} className="block rounded-md py-1.5 text-slate-600 hover:bg-slate-50">News</Link>
-              <Link to="/blog" onClick={() => setMobileOpen(false)} className="block rounded-md py-1.5 text-slate-600 hover:bg-slate-50">Blog</Link>
+              {TENTANG_KAMI_LINKS.map((item) => (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  onClick={() => setMobileOpen(false)}
+                  className="block rounded-md py-1.5 text-slate-600 hover:bg-slate-50"
+                >
+                  {item.label}
+                </Link>
+              ))}
             </div>
           )}
+
+          <Link
+            to="/produk"
+            onClick={() => setMobileOpen(false)}
+            className="block rounded-md py-2 font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Produk
+          </Link>
         </div>
       )}
     </header>
+  );
+}
+
+function DesktopDropdown({ label, links }) {
+  const [open, setOpen] = useState(false);
+  const closeTimer = useRef(null);
+
+  function handleEnter() {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    setOpen(true);
+  }
+  function handleLeave() {
+    closeTimer.current = setTimeout(() => setOpen(false), 120);
+  }
+
+  return (
+    <div className="relative" onMouseEnter={handleEnter} onMouseLeave={handleLeave}>
+      <button
+        className="flex items-center gap-1 text-[15px] font-medium text-slate-600 transition hover:text-brand-700"
+        aria-expanded={open}
+      >
+        {label}
+        <ChevronDown className="h-3.5 w-3.5" />
+      </button>
+      <div
+        className={`absolute left-0 z-50 mt-2 w-48 origin-top rounded-xl border border-slate-100 bg-white p-1 shadow-card transition ${
+          open ? "visible scale-100 opacity-100" : "invisible scale-95 opacity-0"
+        }`}
+      >
+        {links.map((item) => (
+          <Link
+            key={item.to}
+            to={item.to}
+            className="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-brand-50 hover:text-brand-700"
+          >
+            {item.label}
+          </Link>
+        ))}
+      </div>
+    </div>
   );
 }
 

@@ -5,7 +5,6 @@ on:
     branches: [main]
   workflow_dispatch: {}
 
-# Izin standar yang cukup untuk checkout dan eksekusi
 permissions:
   contents: read
 
@@ -31,25 +30,40 @@ jobs:
 
       - name: Build
         env:
-          # Pastikan semua secrets ini sudah diisi di repo Anda!
+          # Pastikan semua secrets ini sudah diisi di repo dev Anda.
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_CLOUDINARY_CLOUD_NAME: ${{ secrets.VITE_CLOUDINARY_CLOUD_NAME }}
           VITE_CLOUDINARY_UPLOAD_PRESET: ${{ secrets.VITE_CLOUDINARY_UPLOAD_PRESET }}
         run: npm run build
 
-      - name: Fix SPA Routing (Copy index.html to 404.html)
-        run: cp dist/index.html dist/404.html
+      # public/CNAME dan public/404.html sudah ikut ter-copy otomatis ke
+      # dist/ oleh Vite (semua isi folder public/ disalin apa adanya).
+      # Baris di bawah ini hanya pengaman terakhir kalau suatu saat
+      # public/404.html terhapus — supaya SPA routing tetap jalan.
+      - name: Pastikan 404.html ada (fallback SPA routing)
+        run: |
+          if [ ! -f dist/404.html ]; then
+            cp dist/index.html dist/404.html
+          fi
 
-      - name: Deploy to External Public Repository
+      - name: Sanity check — pastikan index.html hasil build, bukan source mentah
+        run: |
+          if grep -q '/src/main.jsx' dist/index.html; then
+            echo "::error::dist/index.html masih merujuk /src/main.jsx — build gagal menghasilkan versi production!"
+            exit 1
+          fi
+          echo "OK: dist/index.html sudah merujuk ke bundle hasil build."
+
+      - name: Deploy ke repo publik
         uses: peaceiris/actions-gh-pages@v3
         with:
-          personal_token: ${{ secrets.PERSONAL_TOKEN }} 
+          personal_token: ${{ secrets.PERSONAL_TOKEN }}
           external_repository: servant-id/mossain
-          publish_branch: main 
+          publish_branch: main
           publish_dir: ./dist
           cname: mossain.servant.biz.id
-          force_orphan: true 
+          force_orphan: true
           commit_message: "Release on Main ${{ github.event.head_commit.message }}"
           user_name: 'github-actions[bot]'
           user_email: 'github-actions[bot]@users.noreply.github.com'

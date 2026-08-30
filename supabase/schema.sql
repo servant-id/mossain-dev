@@ -5,10 +5,16 @@
 -- in the same shared Supabase database/project (e.g. servant-main
 -- in `public`).
 --
--- Auth: Supabase Auth (email+password), NOT a custom users table.
--- No Edge Functions needed anywhere — every admin write goes
--- straight from the browser to Supabase, protected by RLS
--- policies that check auth.role() = 'authenticated'.
+-- Auth: Supabase Auth (email+password). No Edge Functions needed
+-- anywhere — every admin write goes straight from the browser to
+-- Supabase.
+--
+-- IMPORTANT — multi-client isolation: RLS write access here is
+-- scoped to the specific admin email(s) listed in mossain.admins,
+-- NOT to "any authenticated user". If this Supabase project is
+-- shared with other clients (e.g. servant-main), their admins
+-- being logged in does NOT grant them access to Mossa's data, and
+-- vice versa. See mossain.admins below.
 -- =========================================================
 
 create schema if not exists mossain;
@@ -81,9 +87,7 @@ create table if not exists mossain.settings (
 );
 
 insert into mossain.settings (setting_key, setting_value) values
-  ('show_layanan', '1'),
-  ('show_solusi', '1'),
-  ('show_video', '0')
+  ('show_layanan', '1')
 on conflict (setting_key) do nothing;
 
 -- ---------------------------------------------------------
@@ -98,23 +102,92 @@ create table if not exists mossain.videos (
   sort_order int default 0
 );
 
+-- ---------------------------------------------------------
+-- testimonials — diinput manual lewat admin (bukan scrape/API
+-- Google Maps, karena ToS Google melarang cache review >30 hari).
+-- ---------------------------------------------------------
+create table if not exists mossain.testimonials (
+  id           bigint generated always as identity primary key,
+  patient_name varchar(150) not null,
+  location     varchar(150),
+  rating       smallint not null default 5 check (rating between 1 and 5),
+  content      text not null,
+  status       text not null default 'published' check (status in ('draft','published')),
+  sort_order   int default 0,
+  created_at   timestamptz not null default now()
+);
+
+-- ---------------------------------------------------------
+-- faqs — pertanyaan umum, ditampilkan di halaman Tentang Kami
+-- ---------------------------------------------------------
+create table if not exists mossain.faqs (
+  id         bigint generated always as identity primary key,
+  question   text not null,
+  answer     text not null,
+  status     text not null default 'published' check (status in ('draft','published')),
+  sort_order int default 0,
+  created_at timestamptz not null default now()
+);
+
+-- =========================================================
+-- Daftar admin yang diizinkan
+--
+-- KRUSIAL untuk isolasi multi-client: kalau project Supabase ini
+-- dipakai bersama client lain (mis. servant-main), "authenticated"
+-- saja TIDAK CUKUP sebagai syarat — itu berarti siapa pun yang
+-- berhasil login di project ini (termasuk admin client lain) akan
+-- bisa mengedit data Mossa juga. Tabel ini + fungsi di bawah
+-- membatasi akses tulis hanya untuk email yang terdaftar di sini.
+--
+-- Tambah/kurangi admin Mossa cukup lewat INSERT/DELETE di tabel
+-- ini — tidak perlu mengubah policy RLS sama sekali.
+-- =========================================================
+create table if not exists mossain.admins (
+  email text primary key
+);
+
+-- Isi email admin Mossa di sini (boleh lebih dari satu baris kalau
+-- ada beberapa admin). GANTI dengan email asli yang Anda daftarkan
+-- di Authentication > Users.
+insert into mossain.admins (email) values
+  ('admin@mossain.com')
+on conflict (email) do nothing;
+
+-- security definer: fungsi ini boleh membaca mossain.admins meskipun
+-- RLS tabel admins sendiri menutup akses langsung (lihat di bawah),
+-- supaya policy pada tabel lain bisa memanggilnya tanpa perlu
+-- membuka akses baca ke seluruh isi tabel admins.
+create or replace function mossain.is_mossain_admin()
+returns boolean
+language sql
+security definer
+set search_path = mossain, pg_temp
+as $$
+  select exists (
+    select 1 from mossain.admins
+    where email = auth.jwt() ->> 'email'
+  );
+$$;
+
 -- =========================================================
 -- Row Level Security
 --
--- Public (anon): read-only on published/active content.
--- Authenticated (any logged-in Supabase Auth user): full CRUD.
---
--- Because there is exactly one admin account for this client,
--- "any authenticated user" is equivalent to "the admin" — just
--- like the servant-main schema's own policies. Do not sign up
--- extra Supabase Auth users unless they should also have full
--- admin access to this content.
+-- Public (anon): read-only pada konten published/active.
+-- Admin Mossa (authenticated DAN emailnya ada di mossain.admins):
+--   full CRUD. Authenticated saja (mis. admin client lain di project
+--   Supabase yang sama) TIDAK dapat akses tulis maupun baca draft.
 -- =========================================================
 alter table mossain.products enable row level security;
 alter table mossain.product_images enable row level security;
 alter table mossain.posts enable row level security;
 alter table mossain.settings enable row level security;
 alter table mossain.videos enable row level security;
+alter table mossain.testimonials enable row level security;
+alter table mossain.faqs enable row level security;
+alter table mossain.admins enable row level security;
+-- Tidak ada policy sama sekali untuk mossain.admins -> tertutup total
+-- dari anon maupun authenticated biasa; hanya fungsi security definer
+-- di atas dan koneksi service_role yang bisa membacanya.
 
 -- --- Public read ---
 create policy "public read active products" on mossain.products
@@ -134,27 +207,43 @@ create policy "public read settings" on mossain.settings
 create policy "public read videos" on mossain.videos
   for select using (true);
 
--- --- Authenticated full access (admin) ---
-create policy "authenticated full access products" on mossain.products
-  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "public read published testimonials" on mossain.testimonials
+  for select using (status = 'published');
 
-create policy "authenticated full access product_images" on mossain.product_images
-  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "public read published faqs" on mossain.faqs
+  for select using (status = 'published');
 
-create policy "authenticated full access posts" on mossain.posts
-  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+-- --- Admin Mossa saja (bukan sembarang authenticated) ---
+create policy "mossain admin full access products" on mossain.products
+  for all using (mossain.is_mossain_admin()) with check (mossain.is_mossain_admin());
 
-create policy "authenticated full access settings" on mossain.settings
-  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "mossain admin full access product_images" on mossain.product_images
+  for all using (mossain.is_mossain_admin()) with check (mossain.is_mossain_admin());
 
-create policy "authenticated full access videos" on mossain.videos
-  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "mossain admin full access posts" on mossain.posts
+  for all using (mossain.is_mossain_admin()) with check (mossain.is_mossain_admin());
 
--- Grants: RLS policies above define *which rows*, but PostgREST also
--- needs table-level privileges to allow the operation at all.
+create policy "mossain admin full access testimonials" on mossain.testimonials
+  for all using (mossain.is_mossain_admin()) with check (mossain.is_mossain_admin());
+
+create policy "mossain admin full access faqs" on mossain.faqs
+  for all using (mossain.is_mossain_admin()) with check (mossain.is_mossain_admin());
+
+create policy "mossain admin full access settings" on mossain.settings
+  for all using (mossain.is_mossain_admin()) with check (mossain.is_mossain_admin());
+
+create policy "mossain admin full access videos" on mossain.videos
+  for all using (mossain.is_mossain_admin()) with check (mossain.is_mossain_admin());
+
+-- Grants: RLS policies di atas menentukan *baris mana*, tapi PostgREST
+-- tetap butuh hak akses level-tabel supaya operasinya diizinkan sama
+-- sekali. Authenticated tetap diberi grant di level tabel karena RLS
+-- policy di atas (mossain.is_mossain_admin()) yang jadi penjaga
+-- sesungguhnya siapa yang benar-benar bisa menulis.
 grant select on all tables in schema mossain to anon;
 grant select, insert, update, delete on all tables in schema mossain to authenticated;
 grant usage, select on all sequences in schema mossain to authenticated;
+revoke all on mossain.admins from anon, authenticated;
 
 -- =========================================================
 -- Seed data (mirrors the current PHP/MySQL content 1:1)
@@ -191,3 +280,25 @@ insert into mossain.products (main, sub, slug, title, descs, price_label, proces
  '["Berfungsi untuk menstabilkan sendi pergelangan kaki dan telapak kaki pada anak dengan kondisi \"lemah\" atau \"jatuh\" (drop foot).","Membantu menciptakan pola berjalan yang lebih normal dan seimbang, sehingga mengurangi risiko anak tersandung atau jatuh.","Dibuat dari bahan plastik yang ringan namun kuat, sehingga tidak mengganggu aktivitas bermain anak.","Bisa dibuat dengan berbagai model dan warna yang menarik agar anak lebih senang memakainya setiap hari.","Secara aktif membantu mengoreksi posisi telapak kaki dan mencegah deformitas lebih lanjut seiring pertumbuhan anak."]'::jsonb,
  'Hubungi kami untuk informasi harga', '7–21 hari kerja', 30)
 on conflict (slug) do nothing;
+
+-- ---------------------------------------------------------
+-- Seed FAQ awal (bisa diedit/ditambah lewat admin nantinya)
+-- ---------------------------------------------------------
+insert into mossain.faqs (question, answer, sort_order) values
+('Apakah Mossa melayani konsultasi sebelum pembuatan alat?',
+ 'Ya. Setiap pasien akan melalui sesi konsultasi dan asesmen langsung dengan praktisi kami untuk menentukan jenis alat yang paling sesuai dengan kondisi dan kebutuhan Anda.',
+ 10),
+('Berapa lama proses pembuatan prostetik atau ortotik?',
+ 'Secara umum proses pengerjaan membutuhkan waktu 7–21 hari kerja, tergantung jenis dan tingkat kerumitan alat. Estimasi pasti akan disampaikan saat konsultasi.',
+ 20),
+('Apakah Mossa melayani pasien di luar Sidoarjo dan Jember?',
+ 'Kami memiliki kantor di Sidoarjo dan Jember, namun tetap terbuka melayani pasien dari kota lain. Silakan hubungi kami via WhatsApp untuk mendiskusikan opsi kunjungan atau pengiriman.',
+ 30),
+('Apakah hasil pemeriksaan medis (rekam medis) wajib dilampirkan?',
+ 'Tidak wajib, namun sangat dianjurkan. Rekam medis atau hasil pemeriksaan dokter membantu praktisi kami merancang alat yang lebih presisi sesuai kondisi Anda.',
+ 40),
+('Apakah alat yang dibuat bisa disesuaikan lagi setelah selesai?',
+ 'Bisa. Kami menyediakan sesi penyesuaian (fitting) setelah alat selesai dibuat untuk memastikan kenyamanan dan fungsi yang optimal bagi pasien.',
+ 50)
+on conflict do nothing;
+

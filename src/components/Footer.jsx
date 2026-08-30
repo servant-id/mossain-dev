@@ -18,11 +18,10 @@ export default function Footer() {
         <div>
           <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-white">Tautan Cepat</h3>
           <ul className="space-y-2.5 text-sm">
-            <li><a href="/#tentang-kami" className="text-slate-400 transition hover:text-white">Tentang Kami</a></li>
-            <li><a href="/#layanan" className="text-slate-400 transition hover:text-white">Layanan</a></li>
-            <li><Link to="/form" className="text-slate-400 transition hover:text-white">Formulir Konsultasi</Link></li>
-            <li><Link to="/news" className="text-slate-400 transition hover:text-white">News</Link></li>
-            <li><Link to="/blog" className="text-slate-400 transition hover:text-white">Blog</Link></li>
+            <li><Link to="/tentang-kami" className="text-slate-400 transition hover:text-white">Tentang Kami</Link></li>
+            <li><Link to="/produk" className="text-slate-400 transition hover:text-white">Produk</Link></li>
+            <li><Link to="/booking" className="text-slate-400 transition hover:text-white">Booking Konsultasi</Link></li>
+            <li><Link to="/tentang-kami#faq" className="text-slate-400 transition hover:text-white">FAQ</Link></li>
           </ul>
         </div>
 

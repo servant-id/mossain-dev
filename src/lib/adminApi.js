@@ -44,6 +44,8 @@ const WRITABLE_FIELDS = {
   product_images: ["product_id", "cloudinary_public_id", "url", "sort_order"],
   settings: ["setting_value"],
   videos: ["title", "source", "src", "poster", "sort_order"],
+  testimonials: ["patient_name", "location", "rating", "content", "status", "sort_order"],
+  faqs: ["question", "answer", "status", "sort_order"],
 };
 
 /**

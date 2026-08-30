@@ -53,7 +53,8 @@ export default function ProductDetail() {
     <Layout>
       <section className="mx-auto max-w-6xl px-4 py-14">
         <nav className="mb-6 text-sm text-slate-500">
-          <Link to="/" className="hover:text-brand-600">Beranda</Link> <span className="mx-1">/</span> {product.title}
+          <Link to="/" className="hover:text-brand-600">Home</Link> <span className="mx-1">//</span>{" "}
+          <Link to="/produk" className="hover:text-brand-600">Produk</Link> <span className="mx-1">//</span> {product.title}
         </nav>
 
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-2">

@@ -1,45 +1,45 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { adminVerify, adminLogout as doLogout, getStoredToken } from "../lib/adminApi";
+import { supabase } from "../lib/supabaseClient";
+import { adminLogout as doLogout } from "../lib/adminApi";
 
 const AdminAuthContext = createContext(null);
 
 export function AdminAuthProvider({ children }) {
   const [status, setStatus] = useState("checking"); // checking | authed | anon
-  const [username, setUsername] = useState(null);
+  const [email, setEmail] = useState(null);
 
   useEffect(() => {
-    let cancelled = false;
-    if (!getStoredToken()) {
-      setStatus("anon");
-      return;
-    }
-    adminVerify()
-      .then((res) => {
-        if (cancelled) return;
-        if (res.valid) {
-          setUsername(res.username);
-          setStatus("authed");
-        } else {
-          setStatus("anon");
-        }
-      })
-      .catch(() => !cancelled && setStatus("anon"));
-    return () => { cancelled = true; };
+    // Cek sesi yang sudah tersimpan (localStorage) saat app pertama dibuka.
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) {
+        setEmail(data.session.user.email);
+        setStatus("authed");
+      } else {
+        setStatus("anon");
+      }
+    });
+
+    // Dengarkan perubahan sesi (login/logout/token refresh) — otomatis
+    // dari Supabase, tidak perlu polling atau verifikasi manual.
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        setEmail(session.user.email);
+        setStatus("authed");
+      } else {
+        setEmail(null);
+        setStatus("anon");
+      }
+    });
+
+    return () => sub.subscription.unsubscribe();
   }, []);
 
-  function markAuthed(name) {
-    setUsername(name);
-    setStatus("authed");
-  }
-
-  function logout() {
-    doLogout();
-    setUsername(null);
-    setStatus("anon");
+  async function logout() {
+    await doLogout();
   }
 
   return (
-    <AdminAuthContext.Provider value={{ status, username, markAuthed, logout }}>
+    <AdminAuthContext.Provider value={{ status, username: email, logout }}>
       {children}
     </AdminAuthContext.Provider>
   );

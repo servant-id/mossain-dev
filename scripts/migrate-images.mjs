@@ -2,30 +2,25 @@
 /**
  * migrate-images.mjs
  * ---------------------------------------------------------------
- * One-time migration: uploads every product photo from the old PHP
- * site's assets/images/<slug>/ folders into Cloudinary, then inserts
- * a matching row into mossain.product_images for each one (via the
- * mossain-admin-write Edge Function, so it goes through the same
- * auth path as the admin UI — no direct service-role use here).
+ * One-time migration: mengunggah semua foto produk dari folder lama
+ * situs PHP (assets/images/<slug>/) ke Cloudinary, lalu insert baris
+ * ke mossain.product_images lewat Supabase langsung (login pakai
+ * Supabase Auth, tidak ada Edge Function/server tambahan).
  *
- * Skips the "-min.jpg" compressed duplicates: Cloudinary generates
- * its own responsive/optimized variants on delivery, so we only need
- * to upload the original full-resolution file once per photo.
+ * Melewati file "-min.jpg" (versi kompresi lama) karena Cloudinary
+ * menghasilkan varian responsive/optimized sendiri saat delivery.
  *
- * Usage:
- *   1. cp .env.example .env and fill in the values, plus:
- *        CLOUDINARY_CLOUD_NAME=...
+ * Pemakaian:
+ *   1. cp .env.example .env lalu isi juga:
  *        CLOUDINARY_API_KEY=...
- *        CLOUDINARY_API_SECRET=...      (signed upload, server-side only)
- *        MOSSAIN_ADMIN_USERNAME=...
+ *        CLOUDINARY_API_SECRET=...
+ *        MOSSAIN_ADMIN_EMAIL=...        (akun admin Supabase Auth Anda)
  *        MOSSAIN_ADMIN_PASSWORD=...
- *        SOURCE_IMAGES_DIR=/path/to/old-site/assets/images
+ *        SOURCE_IMAGES_DIR=/path/ke/situs-lama/assets/images
  *
  *   2. node scripts/migrate-images.mjs
  *
- * Safe to re-run: it skips a slug's images if that product already
- * has rows in product_images (checked before uploading, so you won't
- * get duplicates on a second run).
+ * Aman dijalankan ulang: produk yang sudah punya gambar dilewati.
  */
 
 import "dotenv/config";
@@ -40,7 +35,7 @@ const {
   CLOUDINARY_CLOUD_NAME,
   CLOUDINARY_API_KEY,
   CLOUDINARY_API_SECRET,
-  MOSSAIN_ADMIN_USERNAME,
+  MOSSAIN_ADMIN_EMAIL,
   MOSSAIN_ADMIN_PASSWORD,
   SOURCE_IMAGES_DIR,
 } = process.env;
@@ -51,6 +46,10 @@ if (!VITE_SUPABASE_URL || !VITE_SUPABASE_ANON_KEY) {
 }
 if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
   console.error("Isi kredensial Cloudinary (signed) di .env");
+  process.exit(1);
+}
+if (!MOSSAIN_ADMIN_EMAIL || !MOSSAIN_ADMIN_PASSWORD) {
+  console.error("Isi MOSSAIN_ADMIN_EMAIL dan MOSSAIN_ADMIN_PASSWORD di .env (akun Supabase Auth admin)");
   process.exit(1);
 }
 if (!SOURCE_IMAGES_DIR || !fs.existsSync(SOURCE_IMAGES_DIR)) {
@@ -68,43 +67,21 @@ const supabase = createClient(VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, {
   db: { schema: "mossain" },
 });
 
-const FUNCTIONS_BASE = `${VITE_SUPABASE_URL}/functions/v1`;
-
-async function adminLogin() {
-  const res = await fetch(`${FUNCTIONS_BASE}/mossain-admin-login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username: MOSSAIN_ADMIN_USERNAME, password: MOSSAIN_ADMIN_PASSWORD }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Login admin gagal.");
-  return data.token;
-}
-
-async function adminWrite(token, entity, action, body) {
-  const res = await fetch(`${FUNCTIONS_BASE}/mossain-admin-write`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ entity, action, ...body }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || `Gagal ${action} ${entity}`);
-  return data;
-}
-
 function isRealPhoto(filename) {
-  // Skip the pre-compressed "-min" duplicates and any non-image files.
   if (/-min\.(jpe?g|png|webp)$/i.test(filename)) return false;
   return /\.(jpe?g|png|webp)$/i.test(filename);
 }
 
 async function main() {
-  console.log("Login admin…");
-  const token = await adminLogin();
+  console.log("Login sebagai admin (Supabase Auth)…");
+  const { data: authData, error: authErr } = await supabase.auth.signInWithPassword({
+    email: MOSSAIN_ADMIN_EMAIL,
+    password: MOSSAIN_ADMIN_PASSWORD,
+  });
+  if (authErr) throw new Error(`Login gagal: ${authErr.message}`);
+  console.log(`Login berhasil sebagai ${authData.user.email}.\n`);
 
-  const { data: products, error } = await supabase
-    .from("products")
-    .select("id, slug, title");
+  const { data: products, error } = await supabase.from("products").select("id, slug, title");
   if (error) throw error;
 
   const bySlug = Object.fromEntries(products.map((p) => [p.slug, p]));
@@ -149,14 +126,13 @@ async function main() {
           resource_type: "image",
         });
 
-        await adminWrite(token, "product_images", "insert", {
-          payload: {
-            product_id: product.id,
-            cloudinary_public_id: uploadResult.public_id,
-            url: uploadResult.secure_url,
-            sort_order: sortOrder,
-          },
+        const { error: insertErr } = await supabase.from("product_images").insert({
+          product_id: product.id,
+          cloudinary_public_id: uploadResult.public_id,
+          url: uploadResult.secure_url,
+          sort_order: sortOrder,
         });
+        if (insertErr) throw new Error(insertErr.message);
 
         console.log(`   ✓ ${file}`);
         sortOrder += 1;
@@ -167,6 +143,7 @@ async function main() {
   }
 
   console.log("\nSelesai. Cek tabel mossain.product_images untuk verifikasi.");
+  await supabase.auth.signOut();
 }
 
 main().catch((err) => {

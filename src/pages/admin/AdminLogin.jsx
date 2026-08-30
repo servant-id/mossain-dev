@@ -4,9 +4,9 @@ import { adminLogin } from "../../lib/adminApi";
 import { useAdminAuth } from "../../context/AdminAuthContext";
 
 export default function AdminLogin() {
-  const { status, markAuthed } = useAdminAuth();
+  const { status } = useAdminAuth();
   const navigate = useNavigate();
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -18,8 +18,9 @@ export default function AdminLogin() {
     setError("");
     setSubmitting(true);
     try {
-      const res = await adminLogin(username, password);
-      markAuthed(res.username);
+      await adminLogin(email, password);
+      // AdminAuthContext otomatis mendeteksi sesi baru lewat
+      // onAuthStateChange, jadi tidak perlu set status manual di sini.
       navigate("/admin/dashboard", { replace: true });
     } catch (err) {
       setError(err.message || "Login gagal.");
@@ -36,11 +37,11 @@ export default function AdminLogin() {
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-5">
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">Username</label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">Email</label>
             <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required
               autoFocus
               className="w-full rounded-xl border border-slate-300 p-3 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200"

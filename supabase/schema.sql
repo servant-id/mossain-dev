@@ -2,37 +2,20 @@
 -- Mossa Orthopedic Care (mossain.com) — Supabase schema
 -- Namespaced in its own Postgres schema `mossain` so this
 -- client's tables never collide with any other project living
--- in the same shared Supabase database/project.
+-- in the same shared Supabase database/project (e.g. servant-main
+-- in `public`).
+--
+-- Auth: Supabase Auth (email+password), NOT a custom users table.
+-- No Edge Functions needed anywhere — every admin write goes
+-- straight from the browser to Supabase, protected by RLS
+-- policies that check auth.role() = 'authenticated'.
 -- =========================================================
 
 create schema if not exists mossain;
 
--- ---------------------------------------------------------
--- users (custom admin auth — NOT Supabase Auth)
--- Verified server-side only, via the mossain-admin-login
--- Edge Function, which holds the service-role key. The bcrypt
--- hash never reaches the browser.
--- ---------------------------------------------------------
-create table if not exists mossain.users (
-  id            bigint generated always as identity primary key,
-  username      varchar(50) not null unique,
-  password_hash varchar(255) not null,
-  created_at    timestamptz not null default now()
-);
-
--- ---------------------------------------------------------
--- admin_sessions (opaque session tokens issued by the Edge
--- Function after a successful login; the SPA stores the raw
--- token client-side and sends it as a bearer header on every
--- admin write. Row Level Security blocks all direct client
--- access to this table — only the service role can touch it.)
--- ---------------------------------------------------------
-create table if not exists mossain.admin_sessions (
-  token       uuid primary key default gen_random_uuid(),
-  user_id     bigint not null references mossain.users(id) on delete cascade,
-  created_at  timestamptz not null default now(),
-  expires_at  timestamptz not null
-);
+-- Lets the anon/authenticated API roles see this schema at all.
+-- (Supabase's PostgREST only exposes schemas you explicitly grant.)
+grant usage on schema mossain to anon, authenticated;
 
 -- ---------------------------------------------------------
 -- products
@@ -54,9 +37,7 @@ create table if not exists mossain.products (
 );
 
 -- ---------------------------------------------------------
--- product_images — replaces the old "scan the uploads folder"
--- approach; each row points to a Cloudinary asset instead of a
--- local file path.
+-- product_images — Cloudinary asset references
 -- ---------------------------------------------------------
 create table if not exists mossain.product_images (
   id               bigint generated always as identity primary key,
@@ -73,13 +54,13 @@ create table if not exists mossain.product_images (
 create table if not exists mossain.posts (
   id                bigint generated always as identity primary key,
   title             varchar(255) not null,
-  content           text not null,          -- plain excerpt/snippet source
+  content           text not null,
   excerpt           text,
-  content_html      text,                    -- rich body (rendered as-is, sanitized on read)
-  author            varchar(100) not null default 'melbuadmin',
+  content_html      text,
+  author            varchar(100) not null default 'Mossa Admin',
   type              text not null check (type in ('news','blog')),
   status            text not null default 'published' check (status in ('draft','published')),
-  featured_image    text,                    -- Cloudinary URL
+  featured_image    text,
   video_url         varchar(255),
   slug              varchar(255) not null unique,
   created_at        timestamptz not null default now(),
@@ -106,7 +87,7 @@ insert into mossain.settings (setting_key, setting_value) values
 on conflict (setting_key) do nothing;
 
 -- ---------------------------------------------------------
--- videos (replaces videos.json)
+-- videos
 -- ---------------------------------------------------------
 create table if not exists mossain.videos (
   id         bigint generated always as identity primary key,
@@ -119,20 +100,23 @@ create table if not exists mossain.videos (
 
 -- =========================================================
 -- Row Level Security
--- Public (anon) role: read-only on published/active content.
--- All writes go through Edge Functions using the service role,
--- which checks the admin_sessions token itself — so anon INSERT/
--- UPDATE/DELETE stays fully denied at the DB layer regardless of
--- what the client sends.
+--
+-- Public (anon): read-only on published/active content.
+-- Authenticated (any logged-in Supabase Auth user): full CRUD.
+--
+-- Because there is exactly one admin account for this client,
+-- "any authenticated user" is equivalent to "the admin" — just
+-- like the servant-main schema's own policies. Do not sign up
+-- extra Supabase Auth users unless they should also have full
+-- admin access to this content.
 -- =========================================================
 alter table mossain.products enable row level security;
 alter table mossain.product_images enable row level security;
 alter table mossain.posts enable row level security;
 alter table mossain.settings enable row level security;
 alter table mossain.videos enable row level security;
-alter table mossain.users enable row level security;
-alter table mossain.admin_sessions enable row level security;
 
+-- --- Public read ---
 create policy "public read active products" on mossain.products
   for select using (is_active = true);
 
@@ -150,17 +134,31 @@ create policy "public read settings" on mossain.settings
 create policy "public read videos" on mossain.videos
   for select using (true);
 
--- users / admin_sessions: no policies for anon at all (RLS enabled,
--- zero policies = zero access from anon/authenticated roles; only
--- the service-role key used inside Edge Functions bypasses RLS).
+-- --- Authenticated full access (admin) ---
+create policy "authenticated full access products" on mossain.products
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+create policy "authenticated full access product_images" on mossain.product_images
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+create policy "authenticated full access posts" on mossain.posts
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+create policy "authenticated full access settings" on mossain.settings
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+create policy "authenticated full access videos" on mossain.videos
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+-- Grants: RLS policies above define *which rows*, but PostgREST also
+-- needs table-level privileges to allow the operation at all.
+grant select on all tables in schema mossain to anon;
+grant select, insert, update, delete on all tables in schema mossain to authenticated;
+grant usage, select on all sequences in schema mossain to authenticated;
 
 -- =========================================================
 -- Seed data (mirrors the current PHP/MySQL content 1:1)
 -- =========================================================
-insert into mossain.users (username, password_hash) values
-  ('melbuadmin', '$2b$12$IYt5o1GmCu740kdXZkH3LO0l5O5dZXOOqanTfk6M1e1lhjjBQKbIO')
-on conflict (username) do nothing;
-
 insert into mossain.products (main, sub, slug, title, descs, price_label, processing_time, sort_order) values
 ('prostetik','prostAtas','tangan-atas-siku','Tangan Palsu Atas Siku',
  '["Dirancang untuk kontrol maksimal dengan memanfaatkan gerakan bahu, memungkinkan pengguna untuk membuka dan menutup tangan buatan secara intuitif.","Sistem rongga (soket) yang dibuat pas sesuai ukuran lengan menjamin kenyamanan dan mencegah iritasi saat dipakai beraktivitas.","Menggunakan material komposit yang ringan namun sangat kuat, sehingga tidak membebani pengguna saat bergerak.","Sistem suspensi modern memastikan tangan palsu terpasang dengan aman tanpa mudah terlepas.","Tersedia pilihan dengan penampilan yang sangat mirip tangan asli, membantu mengembalikan rasa percaya diri."]'::jsonb,

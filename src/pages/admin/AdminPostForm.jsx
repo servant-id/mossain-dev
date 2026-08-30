@@ -10,7 +10,7 @@ const emptyForm = {
   content: "",
   excerpt: "",
   content_html: "",
-  author: "melbuadmin",
+  author: "Mossa Admin",
   type: "blog",
   status: "published",
   featured_image: "",

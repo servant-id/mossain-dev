@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Mossa Orthopedic Care — solusi prostetik & ortotik berkualitas untuk kembali bergerak dan bebas melangkah. Melayani Sidoarjo dan Jember." />
+    <title>Mossa Orthopedic Care — Prostetik & Ortotik Terpercaya</title>
+
+    <!-- Preconnect for faster font + Cloudinary asset loading -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://res.cloudinary.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- Pasangan dari public/404.html: mengembalikan URL asli sebelum
+         React Router membaca window.location. Tanpa ini, redirect dari
+         404.html tidak pernah membawa Anda ke halaman yang benar. -->
+    <script>
+      (function (l) {
+        if (l.search[1] === "/") {
+          var decoded = l.search.slice(1).split("&").map(function (s) {
+            return s.replace(/~and~/g, "&");
+          }).join("?");
+          window.history.replaceState(
+            null, null,
+            l.pathname.slice(0, -1) + decoded + l.hash
+          );
+        }
+      })(window.location);
+    </script>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

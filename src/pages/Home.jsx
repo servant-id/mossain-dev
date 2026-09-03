@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import Layout from "../components/Layout";
 import ProductSlider from "../components/ProductSlider";
+import HeroSlider from "../components/HeroSlider";
 import {
   fetchProductCategories,
   fetchImagesForProducts,
   fetchSettings,
+  fetchHeroBanners,
 } from "../lib/content";
 import { waLink, WA_CONSULT_MESSAGE } from "../lib/siteConfig";
 
@@ -13,18 +15,24 @@ export default function Home() {
   const [categories, setCategories] = useState([]);
   const [imagesByProduct, setImagesByProduct] = useState({});
   const [settings, setSettings] = useState({ show_layanan: true });
+  const [heroBanners, setHeroBanners] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [cats, sett] = await Promise.all([fetchProductCategories(), fetchSettings()]);
+        const [cats, sett, banners] = await Promise.all([
+          fetchProductCategories(),
+          fetchSettings(),
+          fetchHeroBanners(),
+        ]);
         const allIds = cats.flatMap((c) => c.subcategories.flatMap((s) => s.products.map((p) => p.id)));
         const imgs = await fetchImagesForProducts(allIds);
         if (cancelled) return;
         setCategories(cats);
         setSettings(sett);
+        setHeroBanners(banners);
         setImagesByProduct(imgs);
       } catch (e) {
         console.error(e);
@@ -39,7 +47,7 @@ export default function Home() {
 
   return (
     <Layout>
-      <Hero />
+      <Hero banners={heroBanners} />
       <CategoryHighlights />
       {settings.show_layanan && !loading && <ServicesSliders groups={sliderGroups} />}
       <CtaBanner />
@@ -47,7 +55,13 @@ export default function Home() {
   );
 }
 
-function Hero() {
+const FALLBACK_SLIDE = [
+  { id: "fallback", image_url: "/hero-prosthetic.jpg", eyebrow: "", title: "", description: "" },
+];
+
+function Hero({ banners }) {
+  const slides = banners.length > 0 ? banners : FALLBACK_SLIDE;
+
   return (
     <section className="relative overflow-hidden bg-gradient-to-br from-brand-700 via-brand-600 to-brand-500 text-white">
       <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-10 px-4 py-16 md:py-24 lg:grid-cols-2">
@@ -74,13 +88,7 @@ function Hero() {
         </div>
 
         <div className="relative">
-          <div className="aspect-[4/3] overflow-hidden rounded-3xl border-4 border-white/20 shadow-floaty">
-            <img
-              src="/hero-prosthetic.jpg"
-              alt="Solusi prostetik dan ortotik Mossa"
-              className="h-full w-full object-cover"
-            />
-          </div>
+          <HeroSlider slides={slides} />
           <div className="absolute -bottom-6 -left-6 hidden rounded-2xl bg-white px-5 py-4 text-ink-900 shadow-floaty sm:block">
             <p className="text-2xl font-bold text-accent-500">Custom Fit</p>
             <p className="text-sm text-slate-500">Soket &amp; brace sesuai anatomi pasien</p>

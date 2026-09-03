@@ -55,27 +55,62 @@ tapi akses tulis dibatasi hanya untuk email yang terdaftar di
 
 ## 3. Setup Cloudinary
 
-1. Buat akun/cloud Cloudinary (gratis cukup untuk awal).
-2. Buat **unsigned upload preset** (Settings → Upload → Add upload preset),
-   set folder default ke `mossain` agar rapi dan tidak campur dengan project
-   lain jika Cloudinary account ini dipakai bersama.
-3. Catat `Cloud Name` dan nama preset untuk `.env`.
+Ada **dua jenis kredensial Cloudinary** yang dipakai untuk dua keperluan
+berbeda — jangan tertukar:
+
+| Kredensial | Dipakai di mana | Untuk apa |
+|---|---|---|
+| **Cloud Name** + **Upload Preset (unsigned)** | Browser (form admin, tombol "Unggah gambar") | Upload dari UI admin, tanpa perlu Secret di browser |
+| **API Key** + **API Secret** | Komputer Anda saja, saat menjalankan `scripts/migrate-images.mjs` | Migrasi massal foto lama sekali jalan, lewat Node.js |
+
+Anda sudah punya baris seperti ini di dashboard Cloudinary:
+```
+CLOUDINARY_URL=cloudinary://<API_KEY>:<API_SECRET>@kg8ki5we
+```
+Dari situ: **Cloud Name Anda adalah `kg8ki5we`** (bagian setelah `@`), lalu
+`<API_KEY>` dan `<API_SECRET>` adalah dua bagian sebelum `@`.
+
+### Langkah A — Buat Upload Preset (WAJIB, untuk admin bisa upload dari browser)
+
+1. Login ke [cloudinary.com](https://cloudinary.com) → Dashboard.
+2. Klik ⚙️ **Settings** (pojok kanan atas) → tab **Upload**.
+3. Scroll ke **Upload presets** → klik **Add upload preset**.
+4. Isi:
+   - **Preset name**: bebas, sarankan `mossain_unsigned` (nama ini yang
+     nanti dipakai di `.env`).
+   - **Signing Mode**: pilih **Unsigned** (WAJIB — kalau "Signed", upload
+     dari browser admin akan selalu gagal/ditolak).
+   - **Folder**: isi `mossain` (opsional tapi disarankan, supaya semua
+     gambar Mossa masuk satu folder rapi, tidak campur project lain kalau
+     akun Cloudinary ini dipakai bersama).
+5. Save.
+
+### Langkah B — Ambil API Key & Secret (untuk skrip migrasi saja)
+
+1. Masih di Dashboard, halaman utama (bukan Settings) biasanya sudah
+   menampilkan **Cloud Name**, **API Key**, **API Secret** langsung
+   (klik ikon mata 👁 untuk lihat Secret).
+2. Catat ketiganya — dipakai di `.env` khusus untuk menjalankan skrip
+   migrasi (bagian 5 di bawah), **bukan** untuk `VITE_CLOUDINARY_*` yang dipakai aplikasi utama.
 
 ## 4. Environment Variables
 
 ```bash
 cp .env.example .env
 ```
-Isi:
+Isi bagian aplikasi utama (dipakai browser, termasuk saat `npm run dev` dan
+saat build lewat GitHub Actions):
 ```
 VITE_SUPABASE_URL=https://xxxx.supabase.co
 VITE_SUPABASE_ANON_KEY=xxxx
-VITE_CLOUDINARY_CLOUD_NAME=xxxx
+VITE_CLOUDINARY_CLOUD_NAME=kg8ki5we
 VITE_CLOUDINARY_UPLOAD_PRESET=mossain_unsigned
 ```
 `VITE_SUPABASE_ANON_KEY` adalah **anon/public key** (bukan service role) —
 aman ditaruh di kode frontend karena keamanannya dijamin oleh RLS, bukan
-oleh kerahasiaan key ini.
+oleh kerahasiaan key ini. `VITE_CLOUDINARY_CLOUD_NAME` juga aman publik
+(cuma alamat, bukan kredensial rahasia) — yang harus dijaga rahasia hanya
+API Secret di bagian bawah.
 
 ## 5. Migrasi Gambar Produk Lama → Cloudinary
 
@@ -85,9 +120,20 @@ Situs PHP lama menyimpan foto produk di `assets/images/<slug>/`. Script
 `product_images` — login pakai akun admin Supabase Auth yang sudah dibuat
 di langkah 2.
 
+Tambahkan baris berikut ke `.env` yang sama (skrip ini **butuh API
+Secret**, beda dari bagian aplikasi utama di atas — jangan sebarkan file
+`.env` ini karena sekarang berisi Secret rahasia):
+```
+CLOUDINARY_API_KEY=xxxx
+CLOUDINARY_API_SECRET=xxxx
+MOSSAIN_ADMIN_EMAIL=admin@mossain.com
+MOSSAIN_ADMIN_PASSWORD=xxxx
+SOURCE_IMAGES_DIR=/path/ke/folder/assets/images
+```
+
+Lalu jalankan:
 ```bash
 npm install
-# lengkapi .env dengan kredensial Cloudinary + MOSSAIN_ADMIN_EMAIL/PASSWORD
 node scripts/migrate-images.mjs
 ```
 
@@ -198,4 +244,21 @@ select untuk anon/authenticated) — hanya bisa dibaca lewat fungsi
   Halaman Tentang Kami tetap menautkan ke ulasan asli di Google Maps.
 - **GTranslate** menggunakan widget resmi Google (bukan simulasi) — konten
   tetap tersimpan hanya dalam Bahasa Indonesia; Bahasa Inggris dihasilkan
-  dari auto-translate saat pengunjung memilih EN.
+  dari auto-translate saat pengunjung memilih EN. Dropdown bahasa
+  klik-untuk-buka (bukan hover), supaya tidak tertutup sendiri saat kursor
+  bergerak menuju pilihan.
+- **Hero banner** (`/admin/hero-banners`) bisa digeser lewat swipe (mobile),
+  drag mouse (desktop), tombol panah, atau otomatis (auto-play, berhenti
+  saat kursor hover di atasnya). "Urutan Tampil" terkecil = tampil paling
+  awal/top. Sarankan satu foto perwakilan per kategori produk, bukan
+  seluruh katalog ditumpuk di hero.
+- **Login admin**: buka `/admin/login` (atau `/admin` yang otomatis
+  redirect ke sana). Email & password sesuai yang dibuat di Supabase
+  Authentication → Users, dan email itu harus juga terdaftar di tabel
+  `mossain.admins` (lihat bagian 2) — kalau tidak, login berhasil tapi
+  semua tombol simpan/hapus akan ditolak RLS.
+- **`VITE_CLOUDINARY_*` di GitHub Secrets**: kalau admin perlu bisa upload
+  gambar dari situs yang sudah live (bukan cuma lokal), pastikan
+  `VITE_CLOUDINARY_CLOUD_NAME` dan `VITE_CLOUDINARY_UPLOAD_PRESET` juga
+  sudah diisi di GitHub Secrets repo dev (lihat bagian 8) — bukan cuma
+  `CLOUDINARY_API_KEY`/`API_SECRET` yang hanya untuk skrip migrasi lokal.

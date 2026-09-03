@@ -2,18 +2,25 @@ import { useEffect, useRef, useState } from "react";
 
 /**
  * Real Google Translate widget (GTranslate), styled to look like a
- * simple "🌐 Indonesia ▾" pill instead of Google's default banner.
+ * simple "🌐 Bahasa ▾" pill instead of Google's default banner.
  *
  * Content on the site is authored only in Indonesian and stored that
  * way in Supabase — switching to English runs Google's live DOM
  * translation, it does not read a second copy of the content.
+ *
+ * Dropdown is click-based (not hover-based) — hover dropdowns break the
+ * moment the cursor moves diagonally toward a menu item instead of
+ * straight down, which is exactly the "susah dipilih" bug reported.
+ * Click-based also works correctly on touchscreens, where hover doesn't
+ * exist at all.
  */
 export default function LanguageSwitcher() {
-  const containerRef = useRef(null);
   const [ready, setReady] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [activeLang, setActiveLang] = useState("id");
+  const wrapperRef = useRef(null);
 
   useEffect(() => {
-    // google_translate_element is the DOM node Google's script looks for.
     window.googleTranslateElementInit = () => {
       // eslint-disable-next-line no-undef
       new window.google.translate.TranslateElement(
@@ -31,64 +38,103 @@ export default function LanguageSwitcher() {
     if (!document.getElementById("google-translate-script")) {
       const script = document.createElement("script");
       script.id = "google-translate-script";
-      script.src =
-        "https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit";
+      script.src = "https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit";
       script.async = true;
+      script.onerror = () => {
+        // Google's widget script can be blocked by ad-blockers or regional
+        // network policies — fail visibly in the console rather than
+        // leaving the button silently non-functional forever.
+        console.error("Gagal memuat skrip Google Translate. Coba nonaktifkan ad-blocker.");
+      };
       document.body.appendChild(script);
     } else if (window.google?.translate) {
       window.googleTranslateElementInit();
     }
   }, []);
 
+  // Tutup dropdown saat klik di luar area, atau saat tombol Escape ditekan.
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    }
+    function handleEscape(e) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, []);
+
   function switchTo(lang) {
-    // GTranslate stores the active language pair in a cookie the widget's
-    // hidden <select> reads on load; the reliable public way to trigger it
-    // is to drive that hidden select directly.
+    setActiveLang(lang);
+    setOpen(false);
+
+    // Coba jalur normal: drive hidden <select> milik widget Google.
     const select = document.querySelector("#google_translate_element select");
     if (select) {
       select.value = lang;
       select.dispatchEvent(new Event("change"));
+      return;
     }
+
+    // Fallback kalau widget belum/gagal siap (mis. diblokir ad-blocker):
+    // set cookie googtrans langsung lalu reload, ini cara yang sama yang
+    // dipakai widget Google secara internal untuk mengingat pilihan bahasa.
+    const pair = lang === "id" ? "" : `/id/${lang}`;
+    document.cookie = `googtrans=${pair};path=/`;
+    document.cookie = `googtrans=${pair};path=/;domain=${window.location.hostname}`;
+    window.location.reload();
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={wrapperRef}>
       {/* Google's own widget renders here, visually hidden — we drive it
           programmatically from our own styled control below. */}
       <div id="google_translate_element" className="notranslate absolute -left-[9999px] h-0 w-0 overflow-hidden" />
 
-      <div ref={containerRef} className="group relative">
-        <button
-          type="button"
-          disabled={!ready}
-          className="notranslate flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-brand-300 hover:text-brand-700 disabled:opacity-60"
-          aria-haspopup="menu"
-        >
-          <TranslateIcon className="h-4 w-4 text-brand-600" />
-          <span>Bahasa</span>
-          <ChevronIcon className="h-3.5 w-3.5" />
-        </button>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        disabled={!ready}
+        className="notranslate flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-brand-300 hover:text-brand-700 disabled:opacity-60"
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        <TranslateIcon className="h-4 w-4 text-brand-600" />
+        <span>{activeLang === "id" ? "Bahasa" : "Language"}</span>
+        <ChevronIcon className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
 
+      {open && (
         <div
           role="menu"
-          className="invisible absolute right-0 z-50 mt-2 w-40 origin-top-right scale-95 rounded-xl border border-slate-100 bg-white p-1 opacity-0 shadow-card transition group-hover:visible group-hover:scale-100 group-hover:opacity-100 group-focus-within:visible group-focus-within:scale-100 group-focus-within:opacity-100"
+          className="notranslate absolute right-0 z-50 mt-2 w-40 rounded-xl border border-slate-100 bg-white p-1 shadow-card"
         >
           <button
             role="menuitem"
             onClick={() => switchTo("id")}
-            className="notranslate flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-brand-50 hover:text-brand-700"
+            className={`flex w-full items-center rounded-lg px-3 py-2 text-left text-sm hover:bg-brand-50 hover:text-brand-700 ${
+              activeLang === "id" ? "font-semibold text-brand-700" : "text-slate-700"
+            }`}
           >
             🇮🇩 Indonesia
           </button>
           <button
             role="menuitem"
             onClick={() => switchTo("en")}
-            className="notranslate flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-brand-50 hover:text-brand-700"
+            className={`flex w-full items-center rounded-lg px-3 py-2 text-left text-sm hover:bg-brand-50 hover:text-brand-700 ${
+              activeLang === "en" ? "font-semibold text-brand-700" : "text-slate-700"
+            }`}
           >
             🇬🇧 English
           </button>
         </div>
-      </div>
+      )}
     </div>
   );
 }

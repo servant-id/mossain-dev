@@ -1,5 +1,5 @@
 import { Suspense, lazy } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AdminAuthProvider } from "./context/AdminAuthContext";
 import RequireAdmin from "./components/RequireAdmin";
 
@@ -18,6 +18,7 @@ const AdminProducts = lazy(() => import("./pages/admin/AdminProducts"));
 const AdminProductForm = lazy(() => import("./pages/admin/AdminProductForm"));
 const AdminTestimonials = lazy(() => import("./pages/admin/AdminTestimonials"));
 const AdminFaqs = lazy(() => import("./pages/admin/AdminFaqs"));
+const AdminHeroBanners = lazy(() => import("./pages/admin/AdminHeroBanners"));
 const AdminSettings = lazy(() => import("./pages/admin/AdminSettings"));
 
 function AdminFallback() {
@@ -39,12 +40,14 @@ export default function App() {
           <Route path="/produk" element={<ProductCatalog />} />
           <Route path="/produk/:slug" element={<ProductDetail />} />
 
+          <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
           <Route path="/admin/login" element={<Suspense fallback={<AdminFallback />}><AdminLogin /></Suspense>} />
           <Route path="/admin/dashboard" element={<RequireAdmin><Suspense fallback={<AdminFallback />}><AdminDashboard /></Suspense></RequireAdmin>} />
           <Route path="/admin/products" element={<RequireAdmin><Suspense fallback={<AdminFallback />}><AdminProducts /></Suspense></RequireAdmin>} />
           <Route path="/admin/products/:id" element={<RequireAdmin><Suspense fallback={<AdminFallback />}><AdminProductForm /></Suspense></RequireAdmin>} />
           <Route path="/admin/testimonials" element={<RequireAdmin><Suspense fallback={<AdminFallback />}><AdminTestimonials /></Suspense></RequireAdmin>} />
           <Route path="/admin/faqs" element={<RequireAdmin><Suspense fallback={<AdminFallback />}><AdminFaqs /></Suspense></RequireAdmin>} />
+          <Route path="/admin/hero-banners" element={<RequireAdmin><Suspense fallback={<AdminFallback />}><AdminHeroBanners /></Suspense></RequireAdmin>} />
           <Route path="/admin/settings" element={<RequireAdmin><Suspense fallback={<AdminFallback />}><AdminSettings /></Suspense></RequireAdmin>} />
 
           <Route path="*" element={<NotFound />} />

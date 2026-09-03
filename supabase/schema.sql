@@ -129,6 +129,25 @@ create table if not exists mossain.faqs (
   created_at timestamptz not null default now()
 );
 
+-- ---------------------------------------------------------
+-- hero_banners — slide-slide di hero Home (bisa geser/swipe).
+-- Diisi manual lewat admin, biasanya satu banner "perwakilan"
+-- per kategori produk (mis. satu foto prostetik, satu ortotik,
+-- satu brace) — bukan menampilkan seluruh katalog di hero.
+-- ---------------------------------------------------------
+create table if not exists mossain.hero_banners (
+  id          bigint generated always as identity primary key,
+  image_url   text not null,
+  eyebrow     varchar(120),
+  title       varchar(200) not null,
+  description text,
+  cta_text    varchar(60),
+  cta_url     text,
+  status      text not null default 'published' check (status in ('draft','published')),
+  sort_order  int default 0,
+  created_at  timestamptz not null default now()
+);
+
 -- =========================================================
 -- Daftar admin yang diizinkan
 --
@@ -184,6 +203,7 @@ alter table mossain.settings enable row level security;
 alter table mossain.videos enable row level security;
 alter table mossain.testimonials enable row level security;
 alter table mossain.faqs enable row level security;
+alter table mossain.hero_banners enable row level security;
 alter table mossain.admins enable row level security;
 -- Tidak ada policy sama sekali untuk mossain.admins -> tertutup total
 -- dari anon maupun authenticated biasa; hanya fungsi security definer
@@ -213,6 +233,9 @@ create policy "public read published testimonials" on mossain.testimonials
 create policy "public read published faqs" on mossain.faqs
   for select using (status = 'published');
 
+create policy "public read published hero banners" on mossain.hero_banners
+  for select using (status = 'published');
+
 -- --- Admin Mossa saja (bukan sembarang authenticated) ---
 create policy "mossain admin full access products" on mossain.products
   for all using (mossain.is_mossain_admin()) with check (mossain.is_mossain_admin());
@@ -227,6 +250,9 @@ create policy "mossain admin full access testimonials" on mossain.testimonials
   for all using (mossain.is_mossain_admin()) with check (mossain.is_mossain_admin());
 
 create policy "mossain admin full access faqs" on mossain.faqs
+  for all using (mossain.is_mossain_admin()) with check (mossain.is_mossain_admin());
+
+create policy "mossain admin full access hero banners" on mossain.hero_banners
   for all using (mossain.is_mossain_admin()) with check (mossain.is_mossain_admin());
 
 create policy "mossain admin full access settings" on mossain.settings
@@ -302,3 +328,19 @@ insert into mossain.faqs (question, answer, sort_order) values
  50)
 on conflict do nothing;
 
+-- ---------------------------------------------------------
+-- Seed hero banner awal — 1 gambar placeholder per kategori.
+-- Admin bisa ganti image_url lewat /admin/hero-banners setelah
+-- gambar produk asli sudah dipindah ke Cloudinary.
+-- ---------------------------------------------------------
+insert into mossain.hero_banners (image_url, eyebrow, title, description, cta_text, cta_url, sort_order) values
+('/hero-prosthetic.jpg', 'Prostetik', 'Kaki & Tangan Palsu Custom Fit',
+ 'Dibuat mengikuti anatomi pasien untuk kenyamanan dan mobilitas maksimal.',
+ 'Lihat Produk Prostetik', '/produk', 10),
+('/hero-prosthetic.jpg', 'Ortotik', 'Penyangga & Koreksi Postur Tubuh',
+ 'Solusi ortotik untuk mendukung pemulihan dan aktivitas sehari-hari.',
+ 'Lihat Produk Ortotik', '/produk', 20),
+('/hero-prosthetic.jpg', 'Brace & Alat Bantu', 'MSO Brace, Dennis Splint, AFO Anak',
+ 'Alat bantu penunjang tumbuh kembang, ditangani praktisi yang telaten.',
+ 'Lihat Semua Produk', '/produk', 30)
+on conflict do nothing;

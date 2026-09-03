@@ -171,3 +171,13 @@ export async function fetchFaqs() {
   if (error) throw error;
   return data || [];
 }
+
+export async function fetchHeroBanners() {
+  const { data, error } = await supabase
+    .from("hero_banners")
+    .select("id, image_url, eyebrow, title, description, cta_text, cta_url")
+    .eq("status", "published")
+    .order("sort_order");
+  if (error) throw error;
+  return data || [];
+}

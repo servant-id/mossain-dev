@@ -46,6 +46,7 @@ const WRITABLE_FIELDS = {
   videos: ["title", "source", "src", "poster", "sort_order"],
   testimonials: ["patient_name", "location", "rating", "content", "status", "sort_order"],
   faqs: ["question", "answer", "status", "sort_order"],
+  hero_banners: ["image_url", "eyebrow", "title", "description", "cta_text", "cta_url", "status", "sort_order"],
 };
 
 /**

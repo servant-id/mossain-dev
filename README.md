@@ -91,7 +91,8 @@ Dari situ: **Cloud Name Anda adalah `kg8ki5we`** (bagian setelah `@`), lalu
    menampilkan **Cloud Name**, **API Key**, **API Secret** langsung
    (klik ikon mata 👁 untuk lihat Secret).
 2. Catat ketiganya — dipakai di `.env` khusus untuk menjalankan skrip
-   migrasi (bagian 5 di bawah), **bukan** untuk `VITE_CLOUDINARY_*` yang dipakai aplikasi utama.
+   migrasi (bagian 5 di bawah), **bukan** untuk `VITE_CLOUDINARY_*` yang
+   dipakai aplikasi utama.
 
 ## 4. Environment Variables
 
@@ -112,7 +113,7 @@ oleh kerahasiaan key ini. `VITE_CLOUDINARY_CLOUD_NAME` juga aman publik
 (cuma alamat, bukan kredensial rahasia) — yang harus dijaga rahasia hanya
 API Secret di bagian bawah.
 
-## 5. Migrasi Gambar Produk Lama → Cloudinary
+## 5. Migrasi Gambar Produk Lama → Cloudinary (dijalankan dari Codespace)
 
 Situs PHP lama menyimpan foto produk di `assets/images/<slug>/`. Script
 `scripts/migrate-images.mjs` mengunggah semua foto asli (bukan versi
@@ -120,16 +121,38 @@ Situs PHP lama menyimpan foto produk di `assets/images/<slug>/`. Script
 `product_images` — login pakai akun admin Supabase Auth yang sudah dibuat
 di langkah 2.
 
-Tambahkan baris berikut ke `.env` yang sama (skrip ini **butuh API
-Secret**, beda dari bagian aplikasi utama di atas — jangan sebarkan file
-`.env` ini karena sekarang berisi Secret rahasia):
+**Tidak perlu laptop/PC lokal** — jalankan langsung dari GitHub Codespace
+(Codespace adalah VM Linux penuh dengan Node.js sudah terpasang, jadi
+`npm install` dan `node scripts/...` jalan normal di sana).
+
+**Satu file `.env` saja, dipakai untuk dua keperluan sekaligus** — bagian
+atas (`VITE_*`) untuk aplikasi/`npm run build`, bagian bawah untuk skrip
+migrasi. Tidak perlu dua file terpisah atau rename apa pun; skrip migrasi
+hanya membaca baris yang dia butuhkan dan mengabaikan sisanya:
 ```
+# --- dipakai aplikasi (npm run dev / npm run build) ---
+VITE_SUPABASE_URL=https://xxxx.supabase.co
+VITE_SUPABASE_ANON_KEY=xxxx
+VITE_CLOUDINARY_CLOUD_NAME=kg8ki5we
+VITE_CLOUDINARY_UPLOAD_PRESET=mossain_unsigned
+
+# --- dipakai skrip migrate-images.mjs saja ---
 CLOUDINARY_API_KEY=xxxx
 CLOUDINARY_API_SECRET=xxxx
 MOSSAIN_ADMIN_EMAIL=admin@mossain.com
 MOSSAIN_ADMIN_PASSWORD=xxxx
 SOURCE_IMAGES_DIR=/path/ke/folder/assets/images
 ```
+File `.env` ini **hanya untuk kerja di Codespace** (build lokal, migrasi) —
+bukan yang dipakai situs production. Production selalu ambil nilai dari
+**GitHub Secrets** (bagian 8), bukan dari file `.env` manapun yang Anda
+simpan di Codespace. Jangan commit file `.env` ini ke git (sudah masuk
+`.gitignore` secara default).
+
+Setelah `.env` terisi, `SOURCE_IMAGES_DIR` perlu menunjuk ke folder
+`assets/images` dari situs PHP lama — upload dulu folder itu ke Codespace
+(drag & drop lewat panel file di kiri, atau `git clone` repo lama kalau
+ada), lalu isi path-nya, misalnya `/workspaces/mossain-dev/old-site-assets`.
 
 Lalu jalankan:
 ```bash
@@ -262,3 +285,7 @@ select untuk anon/authenticated) — hanya bisa dibaca lewat fungsi
   `VITE_CLOUDINARY_CLOUD_NAME` dan `VITE_CLOUDINARY_UPLOAD_PRESET` juga
   sudah diisi di GitHub Secrets repo dev (lihat bagian 8) — bukan cuma
   `CLOUDINARY_API_KEY`/`API_SECRET` yang hanya untuk skrip migrasi lokal.
+- **Hero di mobile**: teks judul & badge full-width di baris atas, lalu
+  paragraf+tombol berdampingan 2 kolom dengan slider gambar sejak layar
+  HP kecil (bukan ditumpuk 1 kolom vertikal) — supaya gambar produk
+  langsung terlihat tanpa perlu scroll.

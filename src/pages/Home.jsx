@@ -64,34 +64,44 @@ function Hero({ banners }) {
 
   return (
     <section className="relative overflow-hidden bg-gradient-to-br from-brand-700 via-brand-600 to-brand-500 text-white">
-      <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-10 px-4 py-16 md:py-24 lg:grid-cols-2">
-        <div>
+      <div className="mx-auto max-w-6xl px-4 py-12 md:py-24">
+        {/* Judul & badge full-width di atas — supaya tetap terbaca lega di
+            layar kecil, tidak ikut dipaksa jadi kolom sempit. */}
+        <div className="max-w-2xl">
           <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1.5 text-sm font-medium">
             <BadgeIcon className="h-4 w-4" /> Ditangani Praktisi Lokal yang Telaten &amp; Teliti
           </span>
-          <h1 className="mt-6 font-display text-4xl font-bold leading-tight md:text-5xl">
-            Kembali Bergerak, <br className="hidden sm:block" />Kembali Bebas Melangkah
+          <h1 className="mt-5 font-display text-3xl font-bold leading-tight sm:text-4xl md:mt-6 md:text-5xl">
+            Kembali Bergerak, Kembali Bebas Melangkah
           </h1>
-          <p className="mt-6 max-w-xl text-lg text-white/90">
-            Mossa Orthopedic Care menghadirkan layanan prostetik, ortotik, dan brace yang dirancang
-            custom sesuai kondisi pasien — profesional, ramah, dan lugas dari konsultasi hingga
-            proses fitting.
-          </p>
-          <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-            <Link to="/produk" className="rounded-full bg-white px-7 py-3 text-center text-base font-semibold text-brand-700 shadow-lg transition hover:-translate-y-0.5">
-              Lihat Produk Kami
-            </Link>
-            <Link to="/booking" className="rounded-full border-2 border-white/80 px-7 py-3 text-center text-base font-semibold transition hover:-translate-y-0.5 hover:bg-white hover:text-brand-700">
-              Booking Konsultasi
-            </Link>
-          </div>
         </div>
 
-        <div className="relative">
-          <HeroSlider slides={slides} />
-          <div className="absolute -bottom-6 -left-6 hidden rounded-2xl bg-white px-5 py-4 text-ink-900 shadow-floaty sm:block">
-            <p className="text-2xl font-bold text-accent-500">Custom Fit</p>
-            <p className="text-sm text-slate-500">Soket &amp; brace sesuai anatomi pasien</p>
+        {/* Dari HP: teks & gambar berdampingan 2 kolom supaya gambar
+            langsung terlihat tanpa scroll. Dari md ke atas: proporsi
+            teks diperlebar sedikit karena ruang lebih longgar. */}
+        <div className="mt-6 grid grid-cols-5 items-start gap-4 sm:gap-6 md:mt-8 md:grid-cols-2 md:items-center md:gap-10">
+          <div className="col-span-3 md:col-span-1">
+            <p className="text-sm text-white/90 sm:text-base md:text-lg">
+              Mossa Orthopedic Care menghadirkan layanan prostetik, ortotik, dan brace yang
+              dirancang custom sesuai kondisi pasien — profesional, ramah, dan lugas dari
+              konsultasi hingga proses fitting.
+            </p>
+            <div className="mt-5 flex flex-col gap-2.5 sm:flex-row md:mt-9 md:gap-3">
+              <Link to="/produk" className="rounded-full bg-white px-5 py-2.5 text-center text-sm font-semibold text-brand-700 shadow-lg transition hover:-translate-y-0.5 sm:px-7 sm:py-3 sm:text-base">
+                Lihat Produk Kami
+              </Link>
+              <Link to="/booking" className="rounded-full border-2 border-white/80 px-5 py-2.5 text-center text-sm font-semibold transition hover:-translate-y-0.5 hover:bg-white hover:text-brand-700 sm:px-7 sm:py-3 sm:text-base">
+                Booking Konsultasi
+              </Link>
+            </div>
+          </div>
+
+          <div className="relative col-span-2 md:col-span-1">
+            <HeroSlider slides={slides} />
+            <div className="absolute -bottom-3 -left-2 max-w-[85%] rounded-xl bg-white px-3 py-2 text-ink-900 shadow-floaty sm:-bottom-6 sm:-left-6 sm:max-w-none sm:rounded-2xl sm:px-5 sm:py-4">
+              <p className="text-sm font-bold text-accent-500 sm:text-2xl">Custom Fit</p>
+              <p className="hidden text-sm text-slate-500 sm:block">Soket &amp; brace sesuai anatomi pasien</p>
+            </div>
           </div>
         </div>
       </div>

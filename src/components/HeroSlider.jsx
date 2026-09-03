@@ -62,7 +62,7 @@ export default function HeroSlider({ slides }) {
     >
       <div
         ref={trackRef}
-        className="flex aspect-[4/3] cursor-grab touch-pan-y transition-transform duration-500 ease-out active:cursor-grabbing"
+        className="flex aspect-[3/4] cursor-grab touch-pan-y transition-transform duration-500 ease-out active:cursor-grabbing sm:aspect-[4/3]"
         style={{ transform: `translateX(-${index * 100}%)` }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -78,14 +78,14 @@ export default function HeroSlider({ slides }) {
               className="h-full w-full object-cover"
             />
             {(slide.eyebrow || slide.title || slide.description) && (
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent p-5 pt-14 text-white">
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent p-2.5 pt-8 text-white sm:p-5 sm:pt-14">
                 {slide.eyebrow && (
-                  <p className="text-xs font-semibold uppercase tracking-wide text-accent-400">{slide.eyebrow}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-accent-400 sm:text-xs">{slide.eyebrow}</p>
                 )}
-                {slide.title && <p className="mt-1 text-lg font-bold">{slide.title}</p>}
-                {slide.description && <p className="mt-1 text-sm text-white/85">{slide.description}</p>}
+                {slide.title && <p className="mt-0.5 text-xs font-bold sm:mt-1 sm:text-lg">{slide.title}</p>}
+                {slide.description && <p className="mt-0.5 hidden text-sm text-white/85 sm:mt-1 sm:block">{slide.description}</p>}
                 {slide.cta_text && slide.cta_url && (
-                  <Link to={slide.cta_url} className="mt-2 inline-block text-sm font-semibold text-accent-400 hover:underline">
+                  <Link to={slide.cta_url} className="mt-1 hidden text-sm font-semibold text-accent-400 hover:underline sm:mt-2 sm:inline-block">
                     {slide.cta_text} →
                   </Link>
                 )}
@@ -101,28 +101,28 @@ export default function HeroSlider({ slides }) {
             type="button"
             onClick={prev}
             aria-label="Slide sebelumnya"
-            className="absolute left-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-brand-700 shadow-card transition hover:bg-white"
+            className="absolute left-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-brand-700 shadow-card transition hover:bg-white sm:left-3 sm:h-9 sm:w-9"
           >
-            <ChevronLeft className="h-5 w-5" />
+            <ChevronLeft className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
           </button>
           <button
             type="button"
             onClick={next}
             aria-label="Slide berikutnya"
-            className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-brand-700 shadow-card transition hover:bg-white"
+            className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-brand-700 shadow-card transition hover:bg-white sm:right-3 sm:h-9 sm:w-9"
           >
-            <ChevronRight className="h-5 w-5" />
+            <ChevronRight className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
           </button>
 
-          <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5">
+          <div className="absolute bottom-1.5 left-1/2 flex -translate-x-1/2 gap-1 sm:bottom-3 sm:gap-1.5">
             {slides.map((s, i) => (
               <button
                 key={s.id}
                 type="button"
                 onClick={() => goTo(i)}
                 aria-label={`Ke slide ${i + 1}`}
-                className={`h-1.5 rounded-full transition-all ${
-                  i === index ? "w-6 bg-white" : "w-1.5 bg-white/50"
+                className={`h-1 rounded-full transition-all sm:h-1.5 ${
+                  i === index ? "w-4 bg-white sm:w-6" : "w-1 bg-white/50 sm:w-1.5"
                 }`}
               />
             ))}
